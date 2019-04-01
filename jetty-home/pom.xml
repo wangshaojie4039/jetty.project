@@ -78,7 +78,7 @@
                   <classifier>version</classifier>
                   <type>txt</type>
                   <overWrite>true</overWrite>
-                  <outputDirectory>${assembly-directory}/</outputDirectory>
+                  <outputDirectory>${assembly-directory}/</outputDirectory >
                   <destFileName>VERSION.txt</destFileName>
                 </artifactItem>
                 <artifactItem>
@@ -290,7 +290,7 @@
                   <version>3.1.0</version>
                   <overWrite>true</overWrite>
                   <outputDirectory>${assembly-directory}/lib</outputDirectory>
-                  <destFileName>servlet-api-3.1.jar</destFileName>
+                  <destFileName>servlet-api-${servlet.api.distributed.version}.jar</destFileName>
                 </artifactItem>
                 <artifactItem>
                   <groupId>org.eclipse.jetty.toolchain</groupId>
@@ -298,7 +298,7 @@
                   <version>3.1.M0</version>
                   <overWrite>true</overWrite>
                   <outputDirectory>${assembly-directory}/lib</outputDirectory>
-                  <destFileName>jetty-schemas-3.1.jar</destFileName>
+                  <destFileName>jetty-schemas-${jetty.schema.distributed.version}.jar</destFileName>
                 </artifactItem>
               </artifactItems>
             </configuration>

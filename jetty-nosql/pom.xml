@@ -10,6 +10,7 @@
   <url>http://www.eclipse.org/jetty</url>
   <properties>
     <bundle-symbolic-name>${project.groupId}.nosql</bundle-symbolic-name>
+    <mongo.version>2.13.2</mongo.version>
   </properties>
   <build>
     <defaultGoal>install</defaultGoal>
@@ -36,7 +37,7 @@
     <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongo-java-driver</artifactId>
-      <version>2.13.2</version>
+      <version>${mongo.version}</version>
       <type>jar</type>
       <scope>compile</scope>
     </dependency>

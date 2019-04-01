@@ -14,8 +14,8 @@ threadpool
 bytebufferpool
 
 [lib]
-lib/servlet-api-3.1.jar
-lib/jetty-schemas-3.1.jar
+lib/servlet-api-@servlet.api.distributed.version@.jar
+lib/jetty-schemas-@jetty.schema.distributed.version@.jar
 lib/jetty-http-${jetty.version}.jar
 lib/jetty-server-${jetty.version}.jar
 lib/jetty-xml-${jetty.version}.jar
@@ -26,7 +26,7 @@ lib/jetty-io-${jetty.version}.jar
 etc/jetty.xml
 
 [jpms]
-patch-module: servlet.api=lib/jetty-schemas-3.1.jar
+patch-module: servlet.api=lib/jetty-schemas-@jetty.schema.distributed.version@.jar
 
 [ini-template]
 ### Common HTTP configuration

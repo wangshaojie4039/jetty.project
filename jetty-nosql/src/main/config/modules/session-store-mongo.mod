@@ -14,7 +14,7 @@ sessions
 sessions/mongo/${connection-type}
 
 [files]
-maven://org.mongodb/mongo-java-driver/2.13.2|lib/nosql/mongo-java-driver-2.13.2.jar
+maven://org.mongodb/mongo-java-driver/@mongo.version@|lib/nosql/mongo-java-driver-@mongo.version@.jar
 
 [lib]
 lib/jetty-nosql-${jetty.version}.jar
