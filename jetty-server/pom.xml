@@ -33,6 +33,37 @@
           <onlyAnalyze>org.eclipse.jetty.server.*</onlyAnalyze>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <!-- we don't want to have keystore file filtering so we copy the original one here -->
+            <id>copy-keystore-resources</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/config</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/main/config</directory>
+                  <filtering>false</filtering>
+                  <includes>
+                    <include>**/keystore</include>
+                  </includes>
+                  <excludes>
+                    <exclude>**/*.mod</exclude>
+                    <exclude>**/.xml</exclude>
+                  </excludes>
+                </resource>
+              </resources>
+              <overwrite>true</overwrite>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
   <dependencies>

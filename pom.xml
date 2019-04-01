@@ -1153,10 +1153,11 @@
       <build>
         <plugins>
           <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-resources-plugin</artifactId>
             <executions>
               <execution>
-                <id>copy-resources</id>
+                <id>copy-config-resources</id>
                 <phase>prepare-package</phase>
                 <goals>
                   <goal>copy-resources</goal>
@@ -1167,9 +1168,13 @@
                     <resource>
                       <directory>src/main/config</directory>
                       <filtering>true</filtering>
+                      <excludes>
+                        <exclude>**/keystore</exclude>
+                      </excludes>
                     </resource>
                   </resources>
                   <useDefaultDelimiters>false</useDefaultDelimiters>
+                  <overwrite>false</overwrite>
                   <delimiters>
                     <delimiter>@</delimiter>
                   </delimiters>
