@@ -203,8 +203,10 @@
               <goal>process-asciidoc</goal>
             </goals>
             <configuration>
-              <backend>docbook</backend>
-              <doctype>book</doctype>
+              <!-- <backend>html</backend>
+              <doctype>book</doctype> -->
+              <backend>html5</backend>
+              <templateDir>${web.resources.directory}/asciidoc/template</templateDir>
               <sourceDirectory>${basedir}/src/main/asciidoc/</sourceDirectory>
               <sourceDocumentName>index2.adoc</sourceDocumentName>
               <outputDirectory>${project.build.directory}/html/mega-guide</outputDirectory>
