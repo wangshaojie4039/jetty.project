@@ -73,10 +73,10 @@
           <instructions>
             <Bundle-SymbolicName>org.eclipse.jetty.tests.test-spec-webapp</Bundle-SymbolicName>
             <Bundle-Description>Test Webapp for Servlet 3.1 Features</Bundle-Description>
-            <!-- TODO Add 'org.eclipse.jetty.util;version="[9.4.19,9.4.20)",' below, once 9.4.19 is released with a fix for #3726 -->
             <Import-Package>
               javax.transaction*;version="[1.1,1.3)",
               javax.servlet*;version="[2.6,4.1)",
+              org.eclipse.jetty.util;version="[9.4.19,9.4.20)",
               org.eclipse.jetty*;version="[$(version;===;${parsedVersion.osgiVersion}),$(version;==+;${parsedVersion.osgiVersion}))",
               org.eclipse.jetty.webapp;version="[$(version;===;${parsedVersion.osgiVersion}),$(version;==+;${parsedVersion.osgiVersion}))";resolution:="optional",
               org.eclipse.jetty.plus.jndi;version="[$(version;===;${parsedVersion.osgiVersion}),$(version;==+;${parsedVersion.osgiVersion}))";resolution:="optional",
@@ -222,11 +222,10 @@
     </dependency>
 
     <!-- deliberately old version to test classloading -->
-    <!-- TODO uncomment and update the following once 9.4.19 is released with a fix for #3726
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-util</artifactId>
-      <version>9.4.19.vXXXXXXXX</version>
+      <version>9.4.19.v20190610</version>
       <exclusions>
         <exclusion>
           <groupId>javax.servlet</groupId>
@@ -234,6 +233,5 @@
         </exclusion>
       </exclusions>
     </dependency>
- -->
   </dependencies>
 </project>

@@ -32,6 +32,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.Part;
 
+import org.eclipse.jetty.util.IO;
+
 /**
  * MultiPartTest
  * 
@@ -78,7 +80,7 @@ public class MultiPartTest extends HttpServlet
                 if (p.getContentType() == null || p.getContentType().startsWith("text/plain"))
                 {
                     out.println("<p>");
-                    copy(p.getInputStream(),out);
+                    IO.copy(p.getInputStream(),out);
                     out.println("</p>");
                 }
             } 
@@ -114,23 +116,6 @@ public class MultiPartTest extends HttpServlet
         catch (Exception e)
         {
             throw new ServletException(e);
-        }
-    }
-
-    // TODO remove inline once 9.4.19 is released with a fix for #3726
-    public static void copy(InputStream in,
-                            OutputStream out)
-        throws IOException
-    {
-        int bufferSize = 8192;
-        byte buffer[] = new byte[bufferSize];
-
-        while (true)
-        {
-            int len=in.read(buffer,0,bufferSize);
-            if (len<0 )
-                break;
-            out.write(buffer,0,len);
         }
     }
 }
