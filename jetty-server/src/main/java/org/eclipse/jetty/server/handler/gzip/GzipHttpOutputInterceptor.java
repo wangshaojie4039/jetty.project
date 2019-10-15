@@ -387,20 +387,41 @@ public class GzipHttpOutputInterceptor implements HttpOutput.Interceptor
             }
 
             BufferUtil.compact(_buffer);
+            if (BufferUtil.hasContent(_buffer))
+                    LOG.info("buffer has content {}", this);
+
             int off = _buffer.arrayOffset() + _buffer.limit();
             int len = _buffer.capacity() - _buffer.limit() - (_last ? 8 : 0);
             if (len > 0)
             {
                 int produced = _deflater.deflate(_buffer.array(), off, len, _syncFlush ? Deflater.SYNC_FLUSH : Deflater.NO_FLUSH);
+                if (produced == 0)
+                    LOG.info("produced==0 {}", this);
                 _buffer.limit(_buffer.limit() + produced);
             }
+            else
+                LOG.info("len==0 {}", this);
             boolean finished = _deflater.finished();
 
             if (finished)
                 addTrailer();
 
+            if (BufferUtil.isEmpty(_buffer))
+                    LOG.info("buffer is empty {}", this);
+
             _interceptor.write(_buffer, finished, this);
             return Action.SCHEDULED;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("%s[content=%s copy=%s last=%b deflate=%s",
+                super.toString(),
+                BufferUtil.toDetailString(_content),
+                BufferUtil.toDetailString(_copy),
+                _last,
+                _deflater);
         }
     }
 }
