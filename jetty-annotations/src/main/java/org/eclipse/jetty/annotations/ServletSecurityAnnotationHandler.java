@@ -51,7 +51,7 @@ import org.eclipse.jetty.webapp.WebAppContext;
  * </ul>
  *
  * The ServletSecurity annotation for a servlet should only be processed
- * iff metadata-complete == false.
+ * if metadata-complete == false.
  */
 public class ServletSecurityAnnotationHandler extends AbstractIntrospectableAnnotationHandler
 {
@@ -74,6 +74,12 @@ public class ServletSecurityAnnotationHandler extends AbstractIntrospectableAnno
         if (!(_context.getSecurityHandler() instanceof ConstraintAware))
         {
             LOG.warn("SecurityHandler not ConstraintAware, skipping security annotation processing");
+            return;
+        }
+
+        if(_context.getMetaData()!=null&&_context.getMetaData().isMetaDataComplete())
+        {
+            LOG.debug("metadataComplete servletSecurity annotations not parsed");
             return;
         }
 

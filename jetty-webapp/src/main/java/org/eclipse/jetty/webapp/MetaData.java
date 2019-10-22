@@ -613,6 +613,11 @@ public class MetaData
         return _metaDataComplete;
     }
 
+    public void setMetaDataComplete(boolean metaDataComplete)
+    {
+        this._metaDataComplete = metaDataComplete;
+    }
+
     public void addWebInfJar(Resource newResource)
     {
         _webInfJars.add(newResource);
