@@ -24,22 +24,27 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.EnumSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.servlet.DispatcherType;
-import javax.servlet.Filter;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.http.HttpURI;
 import org.eclipse.jetty.server.session.DefaultSessionCache;
 import org.eclipse.jetty.server.session.FileSessionDataStore;
 import org.eclipse.jetty.servlet.FilterHolder;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlet.ServletTester;
 import org.eclipse.jetty.toolchain.test.FS;
 import org.eclipse.jetty.toolchain.test.jupiter.WorkDir;
+import org.eclipse.jetty.util.HttpCookieStore;
 import org.eclipse.jetty.util.IO;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterEach;
@@ -58,7 +63,12 @@ public abstract class AbstractDoSFilterTest
     protected int _port;
     protected long _requestMaxTime = 200;
 
-    public void startServer(WorkDir workDir, Class<? extends Filter> filter) throws Exception
+    private volatile AtomicInteger _count = new AtomicInteger(0);
+
+    private DoSFilter dosFilter;
+    private DoSFilter timeoutFilter;
+
+    public void startServer(WorkDir workDir, Class<? extends DoSFilter> filter) throws Exception
     {
         _tester = new ServletTester("/ctx");
 
@@ -76,28 +86,34 @@ public abstract class AbstractDoSFilterTest
         _host = uri.getHost();
         _port = uri.getPort();
 
-        _tester.getContext().addServlet(TestServlet.class, "/*");
+        _tester.getContext().addServlet(new ServletHolder(new TestServlet()), "/*");
 
-        FilterHolder dosFilter = _tester.getContext().addFilter(filter, "/dos/*", EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
-        dosFilter.setInitParameter("maxRequestsPerSec", "4");
-        dosFilter.setInitParameter("delayMs", "200");
-        dosFilter.setInitParameter("throttledRequests", "1");
-        dosFilter.setInitParameter("waitMs", "10");
-        dosFilter.setInitParameter("throttleMs", "4000");
-        dosFilter.setInitParameter("remotePort", "false");
-        dosFilter.setInitParameter("insertHeaders", "true");
+        FilterHolder dosFilterHolder = new FilterHolder(filter);
+        dosFilterHolder.setInitParameter("maxRequestsPerSec", "4");
+        dosFilterHolder.setInitParameter("delayMs", "1000");
+        dosFilterHolder.setInitParameter("throttledRequests", "1");
+        dosFilterHolder.setInitParameter("waitMs", "10");
+        dosFilterHolder.setInitParameter("throttleMs", "4000");
+        dosFilterHolder.setInitParameter("remotePort", "false");
+        dosFilterHolder.setInitParameter("insertHeaders", "true");
+        _tester.addFilter(dosFilterHolder, "/dos/*", EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
 
-        FilterHolder timeoutFilter = _tester.getContext().addFilter(filter, "/timeout/*", EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
-        timeoutFilter.setInitParameter("maxRequestsPerSec", "4");
-        timeoutFilter.setInitParameter("delayMs", "200");
-        timeoutFilter.setInitParameter("throttledRequests", "1");
-        timeoutFilter.setInitParameter("waitMs", "10");
-        timeoutFilter.setInitParameter("throttleMs", "4000");
-        timeoutFilter.setInitParameter("remotePort", "false");
-        timeoutFilter.setInitParameter("insertHeaders", "true");
-        timeoutFilter.setInitParameter("maxRequestMs", _requestMaxTime + "");
+        FilterHolder timeoutFilterHolder = new FilterHolder(filter);
+        timeoutFilterHolder.setInitParameter("maxRequestsPerSec", "4");
+        timeoutFilterHolder.setInitParameter("delayMs", "200");
+        timeoutFilterHolder.setInitParameter("throttledRequests", "1");
+        timeoutFilterHolder.setInitParameter("waitMs", "10");
+        timeoutFilterHolder.setInitParameter("throttleMs", "4000");
+        timeoutFilterHolder.setInitParameter("remotePort", "false");
+        timeoutFilterHolder.setInitParameter("insertHeaders", "true");
+        timeoutFilterHolder.setInitParameter("maxRequestMs", _requestMaxTime + "");
+        _tester.addFilter(timeoutFilterHolder, "/timeout/*", EnumSet.of(DispatcherType.REQUEST, DispatcherType.ASYNC));
 
         _tester.start();
+
+        // Get filter instances for ability to tune configuration per test.
+        dosFilter = (DoSFilter)dosFilterHolder.getFilter();
+        timeoutFilter = (DoSFilter)timeoutFilterHolder.getFilter();
     }
 
     @AfterEach
@@ -261,6 +277,31 @@ public abstract class AbstractDoSFilterTest
     }
 
     @Test
+    public void testSessionTrackingLoadTest() throws Exception
+    {
+        dosFilter.setMaxRequestsPerSec(10);
+        dosFilter.setDelayMs(1000);
+
+        HttpClient client = new HttpClient();
+        client.setCookieStore(new HttpCookieStore.Empty());
+        client.start();
+
+        String sessionId = client.newRequest(_host, _port).path("/ctx/test?session=true").send().getHeaders().get(HttpHeader.SET_COOKIE);
+
+        Duration runDuration = Duration.ofSeconds(4);
+        final long finishTime = System.currentTimeMillis() + runDuration.toMillis();
+        AtomicInteger responseCount = new AtomicInteger(0);
+        while (System.currentTimeMillis() < finishTime)
+        {
+            client.newRequest(_host, _port).path("/ctx/dos/test?count=true").header(HttpHeader.COOKIE, sessionId).send(r -> responseCount.incrementAndGet());
+        }
+        int numRequestsReceived = _count.get();
+        int numResponsesReceived = responseCount.get();
+        System.err.println(numRequestsReceived);
+        System.err.println(numResponsesReceived);
+    }
+
+    @Test
     public void testSessionTracking() throws Exception
     {
         // get a session, first
@@ -326,13 +367,17 @@ public abstract class AbstractDoSFilterTest
         assertThat(responseLines, Matchers.lessThan(numRequests));
     }
 
-    public static class TestServlet extends HttpServlet implements Servlet
+    public class TestServlet extends HttpServlet implements Servlet
     {
         @Override
         protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException
         {
             if (request.getParameter("session") != null)
                 request.getSession(true);
+
+            if (request.getParameter("count") != null)
+                _count.incrementAndGet();
+
             if (request.getParameter("sleep") != null)
             {
                 try
