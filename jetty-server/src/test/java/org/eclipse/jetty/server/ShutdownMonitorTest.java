@@ -73,14 +73,12 @@ public class ShutdownMonitorTest
         }
     }
 
-    @Disabled("Issue #2626")
     @Test
     public void testStartStopDifferentPortDifferentKey() throws Exception
     {
         testStartStop(false);
     }
 
-    @Disabled("Issue #2626")
     @Test
     public void testStartStopSamePortDifferentKey() throws Exception
     {
