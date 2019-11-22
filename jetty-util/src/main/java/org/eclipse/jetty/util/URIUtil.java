@@ -1305,6 +1305,29 @@ public class URIUtil
         return URI.create(buf.toString());
     }
 
+    /**
+     * @param uri A URI to add the path to.
+     * @param query additional query parameters to add to the URI.
+     * @return URI with extra query parameters added.
+     */
+    public static URI addQuery(URI uri, String query)
+    {
+        StringBuilder queryBuilder = new StringBuilder();
+        String oldQuery = uri.getQuery();
+        if (oldQuery != null)
+            queryBuilder.append(oldQuery).append("&");
+        queryBuilder.append(query);
+
+        try
+        {
+            return new URI(uri.getScheme(), uri.getAuthority(), uri.getPath(), queryBuilder.toString(), uri.getFragment());
+        }
+        catch (URISyntaxException e)
+        {
+            throw new IllegalArgumentException("Bad query string", e);
+        }
+    }
+
     public static URI getJarSource(URI uri)
     {
         try

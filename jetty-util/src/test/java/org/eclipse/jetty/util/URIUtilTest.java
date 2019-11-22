@@ -706,4 +706,27 @@ public class URIUtilTest
     {
         assertThat(URIUtil.getUriLastPathSegment(uri), is(expectedName));
     }
+
+    public static Stream<Arguments> addQueryParameterSource()
+    {
+        String newQueryParam = "newParam=11";
+
+        return Stream.of(
+            Arguments.of("example.com", "example.com?"+newQueryParam),
+            Arguments.of("http://example.com/path", "http://example.com/path?"+newQueryParam),
+            Arguments.of("http://example.com:8080/path?existingParam=3",
+                "http://example.com:8080/path?existingParam=3&"+newQueryParam),
+            Arguments.of("http://example.com:8080/path?existingParam=3#fragmentString",
+                "http://example.com:8080/path?existingParam=3&"+newQueryParam+"#fragmentString")
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("addQueryParameterSource")
+    public void testAddQueryParam(String uriString, String expected) throws IOException
+    {
+        URI uri = URI.create(uriString);
+        URI result = URIUtil.addQuery(uri, "newParam=11");
+        assertThat(result.toString(), is(expected));
+    }
 }

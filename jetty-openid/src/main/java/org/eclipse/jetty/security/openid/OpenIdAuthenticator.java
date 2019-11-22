@@ -20,6 +20,7 @@ package org.eclipse.jetty.security.openid;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import javax.servlet.ServletRequest;
@@ -42,7 +43,9 @@ import org.eclipse.jetty.server.Authentication.User;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
 import org.eclipse.jetty.server.UserIdentity;
+import org.eclipse.jetty.server.session.Session;
 import org.eclipse.jetty.util.MultiMap;
+import org.eclipse.jetty.util.StringUtil;
 import org.eclipse.jetty.util.URIUtil;
 import org.eclipse.jetty.util.UrlEncoded;
 import org.eclipse.jetty.util.log.Log;
@@ -78,6 +81,7 @@ public class OpenIdAuthenticator extends LoginAuthenticator
     private OpenIdConfiguration _configuration;
     private String _errorPage;
     private String _errorPath;
+    private String _errorQuery;
     private boolean _alwaysSaveUri;
 
     public OpenIdAuthenticator()
@@ -149,8 +153,12 @@ public class OpenIdAuthenticator extends LoginAuthenticator
             _errorPage = path;
             _errorPath = path;
 
-            if (_errorPath.indexOf('?') > 0)
-                _errorPath = _errorPath.substring(0, _errorPath.indexOf('?'));
+            int queryIndex = _errorPath.indexOf('?');
+            if (queryIndex > 0)
+            {
+                _errorPath = _errorPage.substring(0, queryIndex);
+                _errorQuery = _errorPage.substring(queryIndex + 1);
+            }
         }
     }
 
@@ -246,12 +254,17 @@ public class OpenIdAuthenticator extends LoginAuthenticator
 
         try
         {
+            HttpSession session = request.getSession();
+
             if (request.isRequestedSessionIdFromURL())
             {
                 if (LOG.isDebugEnabled())
                     LOG.debug("Session ID should be cookie for OpenID authentication to work");
 
-                baseResponse.sendRedirect(getRedirectCode(baseRequest.getHttpVersion()), URIUtil.addPaths(request.getContextPath(), _errorPage));
+                String customQuery = (StringUtil.isEmpty(_errorQuery) ? "" : "&") +
+                    "error=" + UrlEncoded.encodeString("cookies must be enabled to store JSESSIONID");
+                String redirectUri = URIUtil.addPaths(request.getContextPath(), _errorPath) + "?" + _errorQuery + customQuery;
+                baseResponse.sendRedirect(getRedirectCode(baseRequest.getHttpVersion()), redirectUri);
                 return Authentication.SEND_FAILURE;
             }
 
@@ -263,7 +276,7 @@ public class OpenIdAuthenticator extends LoginAuthenticator
                 {
                     // Verify anti-forgery state token
                     String state = request.getParameter("state");
-                    String antiForgeryToken = (String)request.getSession().getAttribute(CSRF_TOKEN);
+                    String antiForgeryToken = (String)session.getAttribute(CSRF_TOKEN);
                     if (antiForgeryToken == null || !antiForgeryToken.equals(state))
                     {
                         LOG.warn("auth failed 403: invalid state parameter");
@@ -275,7 +288,6 @@ public class OpenIdAuthenticator extends LoginAuthenticator
                     // Attempt to login with the provided authCode
                     OpenIdCredentials credentials = new OpenIdCredentials(authCode, getRedirectUri(request), _configuration);
                     UserIdentity user = login(null, credentials, request);
-                    HttpSession session = request.getSession(false);
                     if (user != null)
                     {
                         // Redirect to original request
@@ -315,15 +327,16 @@ public class OpenIdAuthenticator extends LoginAuthenticator
                 {
                     if (LOG.isDebugEnabled())
                         LOG.debug("auth failed {}", _errorPage);
+
+                    // TODO: we can redirect OpenID specific error reasons?
                     baseResponse.sendRedirect(getRedirectCode(baseRequest.getHttpVersion()), URIUtil.addPaths(request.getContextPath(), _errorPage));
                 }
 
                 return Authentication.SEND_FAILURE;
             }
 
-            // Look for cached authentication
-            HttpSession session = request.getSession(false);
-            Authentication authentication = session == null ? null : (Authentication)session.getAttribute(SessionAuthentication.__J_AUTHENTICATED);
+            // Look for cached authentication in the Session.
+            Authentication authentication = (Authentication)session.getAttribute(SessionAuthentication.__J_AUTHENTICATED);
             if (authentication != null)
             {
                 // Has authentication been revoked?
@@ -371,16 +384,17 @@ public class OpenIdAuthenticator extends LoginAuthenticator
                 }
             }
 
-            // if we can't send challenge
+            // If we can't send challenge.
             if (DeferredAuthentication.isDeferred(response))
             {
                 if (LOG.isDebugEnabled())
-                    LOG.debug("auth deferred {}", session == null ? null : session.getId());
+                    LOG.debug("auth deferred {}", session.getId());
                 return Authentication.UNAUTHENTICATED;
             }
 
-            // remember the current URI
-            session = (session != null ? session : request.getSession(true));
+
+
+            // Remember the current URI.
             synchronized (session)
             {
                 // But only if it is not set already, or we save every uri that leads to a login redirect
@@ -401,7 +415,7 @@ public class OpenIdAuthenticator extends LoginAuthenticator
                 }
             }
 
-            // send the the challenge
+            // Send the the challenge.
             String challengeUri = getChallengeUri(request);
             if (LOG.isDebugEnabled())
                 LOG.debug("challenge {}->{}", session.getId(), challengeUri);
