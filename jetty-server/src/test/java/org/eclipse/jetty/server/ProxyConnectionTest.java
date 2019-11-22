@@ -84,7 +84,7 @@ public class ProxyConnectionTest
     @Test
     public void testIPv6() throws Exception
     {
-        Assumptions.assumeTrue(Net.isIpv6InterfaceAvailable());
+
         String response = _connector.getResponse("PROXY UNKNOWN eeee:eeee:eeee:eeee:eeee:eeee:eeee:eeee ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff 65535 65535\r\n" +
             "GET /path HTTP/1.1\n" +
             "Host: server:80\n" +
