@@ -64,7 +64,7 @@ public class HttpChannelState
      *    UPGRADED               WOKEN
      * </pre>
      */
-    public enum DispatchState
+    public enum DispatchState  // TODO rename back to State for jetty-9
     {
         IDLE,        // Idle request
         HANDLING,    // Request dispatched to filter/servlet or Async IO callback
@@ -274,11 +274,12 @@ public class HttpChannelState
 
     private String getStatusStringLocked()
     {
-        return String.format("s=%s rs=%s os=%s is=%s awp=%b se=%b i=%b al=%d",
+        return String.format("s=%s req/in=%s/%s res/out=%s/%s awp=%b se=%b i=%b al=%d",
             _state,
             _requestState,
-            _responseState,
             _inputState,
+            _responseState,
+            _outputState,
             _asyncWritePossible,
             _sendError,
             _initial,
@@ -325,13 +326,15 @@ public class HttpChannelState
         }
     }
 
-    public void onWriteComplete(boolean responseComplete)
+    public void onWriteSuccess(boolean responseComplete)
     {
         boolean wake = false;
         boolean responseCompleted = false;
 
         synchronized (this)
         {
+            if (LOG.isDebugEnabled())
+                LOG.debug("onWriteComplete {} {}", toStringLocked(), responseComplete);
             switch (_outputState)
             {
                 case PENDING:
@@ -375,6 +378,55 @@ public class HttpChannelState
             _channel.onResponseComplete();
         if (wake)
             _channel.execute(_channel);
+    }
+
+    public void onWriteError(Throwable th)
+    {
+        boolean wake = false;
+
+        synchronized (this)
+        {
+            if (LOG.isDebugEnabled())
+                LOG.debug("onWriteFailed {}", toStringLocked(), th);
+            switch (_outputState)
+            {
+                case PENDING:
+                case UNREADY:
+                    _outputState = OutputState.ERROR;
+                    _channel.getRequest().setAttribute(HttpOutput.ERROR, th);
+                    if (_state == DispatchState.WAITING)
+                    {
+                        _state = DispatchState.WOKEN;
+                        wake = true;
+                    }
+                    break;
+
+                case CLOSING:
+                    _outputState = OutputState.CLOSED;
+                    break;
+
+                default:
+            }
+        }
+
+        if (wake)
+            _channel.execute(_channel);
+    }
+
+    public IOException getWriteError()
+    {
+        synchronized (this)
+        {
+            if (_outputState == OutputState.ERROR)
+            {
+                Throwable th = (Throwable) _channel.getRequest().getAttribute(HttpOutput.ERROR);
+                if (th instanceof IOException)
+                    return (IOException)th;
+                else if (th != null)
+                    return new IOException(th);
+            }
+        }
+        return null;
     }
 
     public boolean isResponseCommitted()
@@ -1569,7 +1621,7 @@ public class HttpChannelState
         return false;
     }
 
-    OutputState onWrite(boolean flush)
+    OutputState prepareWrite(boolean flush)
     {
         synchronized (this)
         {
@@ -1597,12 +1649,12 @@ public class HttpChannelState
         }
     }
 
-    OutputState onWriteContent() throws IOException
+    OutputState prepareWriteContent()
     {
         synchronized (this)
         {
             if (_responseState != ResponseState.OPEN)
-                throw new IOException("cannot sendContent(), output already committed");
+                throw new IllegalStateException("cannot sendContent(), output already committed");
 
             switch (_outputState)
             {
@@ -1615,7 +1667,9 @@ public class HttpChannelState
 
                 case CLOSING:
                 case CLOSED:
-                    throw new EofException("Closed");
+                    _channel.getRequest().setAttribute(HttpOutput.ERROR, new EofException("Closed"));
+                    _outputState = OutputState.ERROR;
+                    break;
 
                 default:
                     throw new IllegalStateException(_outputState.toString());
