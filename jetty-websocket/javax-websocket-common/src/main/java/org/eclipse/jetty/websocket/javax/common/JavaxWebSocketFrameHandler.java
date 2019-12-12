@@ -22,7 +22,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -91,18 +90,17 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
     private MethodHandle errorHandle;
     private JavaxWebSocketFrameHandlerMetadata.MessageMetadata textMetadata;
     private JavaxWebSocketFrameHandlerMetadata.MessageMetadata binaryMetadata;
-    // TODO: need pingHandle ?
     private MethodHandle pongHandle;
 
     private UpgradeRequest upgradeRequest;
     private UpgradeResponse upgradeResponse;
 
     private final EndpointConfig endpointConfig;
+    private final Map<Byte, RegisteredMessageHandler> messageHandlerMap = new HashMap<>();
     private MessageSink textSink;
     private MessageSink binarySink;
     private MessageSink activeMessageSink;
     private JavaxWebSocketSession session;
-    private Map<Byte, RegisteredMessageHandler> messageHandlerMap;
     private CoreSession coreSession;
 
     protected byte dataType = OpCode.UNDEFINED;
@@ -134,7 +132,6 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
         this.pongHandle = pongHandle;
 
         this.endpointConfig = endpointConfig;
-        this.messageHandlerMap = new HashMap<>();
     }
 
     public Object getEndpoint()
@@ -159,16 +156,12 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
         {
             this.coreSession = coreSession;
             session = new JavaxWebSocketSession(container, coreSession, this, endpointConfig);
-
             openHandle = InvokerUtils.bindTo(openHandle, session, endpointConfig);
             closeHandle = InvokerUtils.bindTo(closeHandle, session);
             errorHandle = InvokerUtils.bindTo(errorHandle, session);
-
-            JavaxWebSocketFrameHandlerMetadata.MessageMetadata actualTextMetadata = JavaxWebSocketFrameHandlerMetadata.MessageMetadata.copyOf(textMetadata);
-            JavaxWebSocketFrameHandlerMetadata.MessageMetadata actualBinaryMetadata = JavaxWebSocketFrameHandlerMetadata.MessageMetadata.copyOf(binaryMetadata);
-
             pongHandle = InvokerUtils.bindTo(pongHandle, session);
 
+            JavaxWebSocketFrameHandlerMetadata.MessageMetadata actualTextMetadata = JavaxWebSocketFrameHandlerMetadata.MessageMetadata.copyOf(textMetadata);
             if (actualTextMetadata != null)
             {
                 if (actualTextMetadata.isMaxMessageSizeSet())
@@ -177,10 +170,10 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
                 actualTextMetadata.handle = InvokerUtils.bindTo(actualTextMetadata.handle, endpointInstance, endpointConfig, session);
                 actualTextMetadata.handle = JavaxWebSocketFrameHandlerFactory.wrapNonVoidReturnType(actualTextMetadata.handle, session);
                 textSink = JavaxWebSocketFrameHandlerFactory.createMessageSink(session, actualTextMetadata);
-
                 textMetadata = actualTextMetadata;
             }
 
+            JavaxWebSocketFrameHandlerMetadata.MessageMetadata actualBinaryMetadata = JavaxWebSocketFrameHandlerMetadata.MessageMetadata.copyOf(binaryMetadata);
             if (actualBinaryMetadata != null)
             {
                 if (actualBinaryMetadata.isMaxMessageSizeSet())
@@ -189,7 +182,6 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
                 actualBinaryMetadata.handle = InvokerUtils.bindTo(actualBinaryMetadata.handle, endpointInstance, endpointConfig, session);
                 actualBinaryMetadata.handle = JavaxWebSocketFrameHandlerFactory.wrapNonVoidReturnType(actualBinaryMetadata.handle, session);
                 binarySink = JavaxWebSocketFrameHandlerFactory.createMessageSink(session, actualBinaryMetadata);
-
                 binaryMetadata = actualBinaryMetadata;
             }
 
@@ -280,14 +272,9 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
 
     public Set<MessageHandler> getMessageHandlers()
     {
-        if (messageHandlerMap.isEmpty())
-        {
-            return Collections.emptySet();
-        }
-
-        return Collections.unmodifiableSet(messageHandlerMap.values().stream()
-            .map((rh) -> rh.getMessageHandler())
-            .collect(Collectors.toSet()));
+        return messageHandlerMap.values().stream()
+            .map(RegisteredMessageHandler::getMessageHandler)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     public Map<Byte, RegisteredMessageHandler> getMessageHandlerMap()
@@ -321,7 +308,7 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
             // TODO: move methodhandle lookup to container?
             MethodHandles.Lookup lookup = MethodHandles.publicLookup();
             MethodHandle partialMessageHandler = lookup
-                .findVirtual(MessageHandler.Partial.class, "onMessage", MethodType.methodType(Void.TYPE, Object.class, Boolean.TYPE));
+                .findVirtual(MessageHandler.Partial.class, "onMessage", MethodType.methodType(void.class, Object.class, boolean.class));
             partialMessageHandler = partialMessageHandler.bindTo(handler);
 
             // MessageHandler.Partial has no decoder support!
@@ -376,9 +363,9 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
     {
         try
         {
-            // TODO: move methodhandle lookup to container?
+            // TODO: move MethodHandle lookup to container?
             MethodHandles.Lookup lookup = MethodHandles.publicLookup();
-            MethodHandle wholeMsgMethodHandle = lookup.findVirtual(MessageHandler.Whole.class, "onMessage", MethodType.methodType(Void.TYPE, Object.class));
+            MethodHandle wholeMsgMethodHandle = lookup.findVirtual(MessageHandler.Whole.class, "onMessage", MethodType.methodType(void.class, Object.class));
             wholeMsgMethodHandle = wholeMsgMethodHandle.bindTo(handler);
 
             if (PongMessage.class.isAssignableFrom(clazz))
@@ -499,7 +486,7 @@ public class JavaxWebSocketFrameHandler implements FrameHandler
                         this.binarySink = null;
                         break;
                     default:
-                        break; // TODO ISE?
+                        throw new IllegalStateException(OpCode.name(key));
                 }
             }
         }
